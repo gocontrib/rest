@@ -50,19 +50,23 @@ type Client struct {
 }
 
 func NewClient(config Config) *Client {
-	return &Client{config: config}
+	return &Client{config: &config}
 }
 
 func (c *Client) Get(path string, result interface{}) error {
-	return get(c.url(path), c.makeHeader(), result)
+	return fetch("GET", c.url(path), c.makeHeader(), nil, result)
 }
 
 func (c *Client) Post(path string, payload, result interface{}) error {
-	return post(c.url(path), c.makeHeader(), payload, result)
+	return fetch("POST", c.url(path), c.makeHeader(), payload, result)
 }
 
 func (c *Client) Put(path string, payload, result interface{}) error {
-	return put(c.url(path), c.makeHeader(), payload, result)
+	return fetch("PUT", c.url(path), c.makeHeader(), payload, result)
+}
+
+func (c *Client) Delete(path string) error {
+	return fetch("DELETE", c.url(path), c.makeHeader(), nil, nil)
 }
 
 func (c *Client) url(path string) string {
@@ -166,18 +170,6 @@ func fetch(method, url string, header http.Header, payload, result interface{}) 
 	}
 
 	return err
-}
-
-func get(url string, header http.Header, result interface{}) error {
-	return fetch("GET", url, header, nil, result)
-}
-
-func post(url string, header http.Header, payload, result interface{}) error {
-	return fetch("POST", url, header, payload, result)
-}
-
-func put(url string, header http.Header, payload, result interface{}) error {
-	return fetch("PUT", url, header, payload, result)
 }
 
 func joinURL(a, b string) string {

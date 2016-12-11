@@ -89,13 +89,25 @@ func (c *Client) makeHeader() http.Header {
 	return h
 }
 
-// TODO configurable verbose logging
-
 var verbose = false
+
+func SetVerbose(value bool) {
+	verbose = value
+}
+
+type LogFunc func(message string)
+
+var logger LogFunc = func(message string) {
+	fmt.Println(message)
+}
+
+func SetLogger(fn LogFunc) {
+	logger = fn
+}
 
 func logVerbose(format string, args ...interface{}) {
 	if verbose {
-		fmt.Println(fmt.Sprintf(format, args...))
+		logger(fmt.Sprintf(format, args...))
 	}
 }
 

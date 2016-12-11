@@ -105,12 +105,16 @@ func fetch(method, url string, header http.Header, payload, result interface{}) 
 	var body io.Reader
 
 	if payload != nil {
-		data, err := json.MarshalIndent(payload, "", "  ")
-		if err != nil {
-			return err
+		if reader, ok := payload.(io.Reader); ok {
+			body = reader
+		} else {
+			data, err := json.MarshalIndent(payload, "", "  ")
+			if err != nil {
+				return err
+			}
+			logVerbose("payload:\n: %v", string(data))
+			body = bytes.NewReader(data)
 		}
-		logVerbose("payload:\n: %v", string(data))
-		body = bytes.NewReader(data)
 	}
 
 	req, err := http.NewRequest(method, url, body)

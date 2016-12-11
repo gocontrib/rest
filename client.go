@@ -46,31 +46,43 @@ type Config struct {
 }
 
 type Client struct {
-	config *Config
+	config     *Config
+	httpClient *http.Client
 }
 
 func NewClient(config Config) *Client {
-	return &Client{config: &config}
+	// TODO should be configurable
+	transport := &http.Transport{
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: true, // ignore expired SSL certificates
+		},
+	}
+
+	httpClient := &http.Client{
+		Timeout:   time.Second * 30,
+		Transport: transport,
+	}
+
+	return &Client{
+		config:     &config,
+		httpClient: httpClient,
+	}
 }
 
 func (c *Client) Get(path string, result interface{}) error {
-	return fetch("GET", c.url(path), c.makeHeader(), nil, result)
+	return c.Fetch("GET", path, c.makeHeader(), nil, result)
 }
 
 func (c *Client) Post(path string, payload, result interface{}) error {
-	return fetch("POST", c.url(path), c.makeHeader(), payload, result)
+	return c.Fetch("POST", path, c.makeHeader(), payload, result)
 }
 
 func (c *Client) Put(path string, payload, result interface{}) error {
-	return fetch("PUT", c.url(path), c.makeHeader(), payload, result)
+	return c.Fetch("PUT", path, c.makeHeader(), payload, result)
 }
 
 func (c *Client) Delete(path string) error {
-	return fetch("DELETE", c.url(path), c.makeHeader(), nil, nil)
-}
-
-func (c *Client) url(path string) string {
-	return joinURL(c.config.BaseURL, path)
+	return c.Fetch("DELETE", path, c.makeHeader(), nil, nil)
 }
 
 func (c *Client) makeHeader() http.Header {
@@ -89,29 +101,8 @@ func (c *Client) makeHeader() http.Header {
 	return h
 }
 
-var verbose = false
-
-func SetVerbose(value bool) {
-	verbose = value
-}
-
-type LogFunc func(message string)
-
-var logger LogFunc = func(message string) {
-	fmt.Println(message)
-}
-
-func SetLogger(fn LogFunc) {
-	logger = fn
-}
-
-func logVerbose(format string, args ...interface{}) {
-	if verbose {
-		logger(fmt.Sprintf(format, args...))
-	}
-}
-
-func fetch(method, url string, header http.Header, payload, result interface{}) error {
+func (c *Client) Fetch(method, path string, header http.Header, payload, result interface{}) error {
+	url := joinURL(c.config.BaseURL, path)
 	logVerbose("%s %s", method, url)
 
 	var body io.Reader
@@ -141,19 +132,7 @@ func fetch(method, url string, header http.Header, payload, result interface{}) 
 		}
 	}
 
-	// TODO should be configurable
-	transport := &http.Transport{
-		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: true, // ignore expired SSL certificates
-		},
-	}
-
-	client := &http.Client{
-		Timeout:   time.Second * 30,
-		Transport: transport,
-	}
-
-	res, err := client.Do(req)
+	res, err := c.httpClient.Do(req)
 	if err != nil {
 		logVerbose("client.Do() error: %v", err)
 		return err
@@ -205,4 +184,26 @@ func indentedJSON(d []byte) string {
 		return string(d)
 	}
 	return string(b)
+}
+
+var verbose = false
+
+func SetVerbose(value bool) {
+	verbose = value
+}
+
+type LogFunc func(message string)
+
+var logger LogFunc = func(message string) {
+	fmt.Println(message)
+}
+
+func SetLogger(fn LogFunc) {
+	logger = fn
+}
+
+func logVerbose(format string, args ...interface{}) {
+	if verbose {
+		logger(fmt.Sprintf(format, args...))
+	}
 }

@@ -43,6 +43,7 @@ type Config struct {
 	Token       string
 	TokenHeader string
 	AuthScheme  string
+	Timeout     int64
 }
 
 type Client struct {
@@ -51,6 +52,10 @@ type Client struct {
 }
 
 func NewClient(config Config) *Client {
+	if config.Timeout <= 0 {
+		config.Timeout = 30
+	}
+
 	// TODO should be configurable
 	transport := &http.Transport{
 		TLSClientConfig: &tls.Config{
@@ -59,7 +64,7 @@ func NewClient(config Config) *Client {
 	}
 
 	httpClient := &http.Client{
-		Timeout:   time.Second * 30,
+		Timeout:   time.Duration(config.Timeout * int64(time.Second)),
 		Transport: transport,
 	}
 

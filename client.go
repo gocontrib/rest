@@ -16,12 +16,14 @@ import (
 	"net/url"
 )
 
-// borrowed from net/http
+// BasicAuth encodes credentials according to basic authentication scheme.
 func BasicAuth(username, password string) string {
+	// borrowed from net/http
 	auth := username + ":" + password
 	return base64.StdEncoding.EncodeToString([]byte(auth))
 }
 
+// MakeQueryString from given map.
 func MakeQueryString(m map[string]string) string {
 	qs := ""
 	for k, v := range m {
@@ -38,6 +40,7 @@ func MakeQueryString(m map[string]string) string {
 	return qs
 }
 
+// Config of the REST API client.
 type Config struct {
 	BaseURL     string
 	Token       string
@@ -46,11 +49,13 @@ type Config struct {
 	Timeout     int64
 }
 
+// Client to REST API service.
 type Client struct {
 	config     *Config
 	httpClient *http.Client
 }
 
+// NewClient creates new instance of REST API client with given config.
 func NewClient(config Config) *Client {
 	if config.Timeout <= 0 {
 		config.Timeout = 30
@@ -74,18 +79,27 @@ func NewClient(config Config) *Client {
 	}
 }
 
+// Config returns current client configuration.
+func (c *Client) Config() *Config {
+	return c.config
+}
+
+// Get makes GET request to given resource.
 func (c *Client) Get(path string, result interface{}) error {
 	return c.Fetch("GET", path, c.makeHeader(), nil, result)
 }
 
+// Post makes POST request to given resource.
 func (c *Client) Post(path string, payload, result interface{}) error {
 	return c.Fetch("POST", path, c.makeHeader(), payload, result)
 }
 
+// Put makes PUT request to given resource.
 func (c *Client) Put(path string, payload, result interface{}) error {
 	return c.Fetch("PUT", path, c.makeHeader(), payload, result)
 }
 
+// Delete makes DELETE request to given resource.
 func (c *Client) Delete(path string) error {
 	return c.Fetch("DELETE", path, c.makeHeader(), nil, nil)
 }
@@ -106,6 +120,7 @@ func (c *Client) makeHeader() http.Header {
 	return h
 }
 
+// Fetch makes HTTP request to given resource.
 func (c *Client) Fetch(method, path string, header http.Header, payload, result interface{}) error {
 	url := joinURL(c.config.BaseURL, path)
 	logVerbose("%s %s", method, url)
@@ -193,16 +208,19 @@ func indentedJSON(d []byte) string {
 
 var verbose = false
 
+// SetVerbose enables/disabled verbose logging.
 func SetVerbose(value bool) {
 	verbose = value
 }
 
+// LogFunc defines logging func.
 type LogFunc func(message string)
 
 var logger LogFunc = func(message string) {
 	fmt.Println(message)
 }
 
+// SetLogger allows to change default logger.
 func SetLogger(fn LogFunc) {
 	logger = fn
 }

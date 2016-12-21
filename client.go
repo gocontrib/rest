@@ -122,7 +122,7 @@ func (c *Client) makeHeader() http.Header {
 
 // Fetch makes HTTP request to given resource.
 func (c *Client) Fetch(method, path string, header http.Header, payload, result interface{}) error {
-	url := joinURL(c.config.BaseURL, path)
+	url := JoinURL(c.config.BaseURL, path)
 	logVerbose("%s %s", method, url)
 
 	var body io.Reader
@@ -187,7 +187,8 @@ func (c *Client) Fetch(method, path string, header http.Header, payload, result 
 	return err
 }
 
-func joinURL(a, b string) string {
+// JoinURL joins two pathes
+func JoinURL(a, b string) string {
 	a = strings.TrimRight(a, "/")
 	b = strings.TrimLeft(b, "/")
 	return a + "/" + b

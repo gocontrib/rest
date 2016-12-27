@@ -16,6 +16,11 @@ import (
 	"net/url"
 )
 
+const (
+	MimeJSON = "application/json"
+	MimeXML  = "application/xml"
+)
+
 // BasicAuth encodes credentials according to basic authentication scheme.
 func BasicAuth(username, password string) string {
 	// borrowed from net/http
@@ -84,27 +89,37 @@ func (c *Client) Config() *Config {
 	return c.config
 }
 
+// Download makes GET request to download raw bytes of given resource.
+func (c *Client) Download(path string, accept string) ([]byte, error) {
+	var result []byte
+	err := c.Fetch("GET", path, c.makeHeader(accept), nil, &result)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
 // Get makes GET request to given resource.
 func (c *Client) Get(path string, result interface{}) error {
-	return c.Fetch("GET", path, c.makeHeader(), nil, result)
+	return c.Fetch("GET", path, c.makeHeader(MimeJSON), nil, result)
 }
 
 // Post makes POST request to given resource.
 func (c *Client) Post(path string, payload, result interface{}) error {
-	return c.Fetch("POST", path, c.makeHeader(), payload, result)
+	return c.Fetch("POST", path, c.makeHeader(MimeJSON), payload, result)
 }
 
 // Put makes PUT request to given resource.
 func (c *Client) Put(path string, payload, result interface{}) error {
-	return c.Fetch("PUT", path, c.makeHeader(), payload, result)
+	return c.Fetch("PUT", path, c.makeHeader(MimeJSON), payload, result)
 }
 
 // Delete makes DELETE request to given resource.
 func (c *Client) Delete(path string) error {
-	return c.Fetch("DELETE", path, c.makeHeader(), nil, nil)
+	return c.Fetch("DELETE", path, c.makeHeader(""), nil, nil)
 }
 
-func (c *Client) makeHeader() http.Header {
+func (c *Client) makeHeader(accept string) http.Header {
 	h := http.Header{}
 
 	if len(c.config.Token) > 0 {
@@ -115,6 +130,10 @@ func (c *Client) makeHeader() http.Header {
 		} else {
 			h.Set("Authorization", "Bearer "+c.config.Token)
 		}
+	}
+
+	if len(accept) > 0 {
+		h.Set("Accept", accept)
 	}
 
 	return h
@@ -172,11 +191,16 @@ func (c *Client) Fetch(method, path string, header http.Header, payload, result 
 	}
 
 	if result != nil && ok {
-		err = json.Unmarshal(data, result)
+		rawResult, ok := result.(*[]byte)
+		if ok {
+			*rawResult = data
+		} else {
+			err = json.Unmarshal(data, result)
 
-		if err != nil && verbose {
-			logVerbose("json.Decode() error: %v", err)
-			logVerbose("payload:\n%v", indentedJSON(data))
+			if err != nil && verbose {
+				logVerbose("json.Decode() error: %v", err)
+				logVerbose("payload:\n%v", indentedJSON(data))
+			}
 		}
 	}
 

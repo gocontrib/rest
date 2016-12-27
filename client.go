@@ -109,6 +109,13 @@ func (c *Client) Post(path string, payload, result interface{}) error {
 	return c.Fetch("POST", path, c.makeHeader(MimeJSON), payload, result)
 }
 
+// PostData makes POST request to upload given data.
+func (c *Client) PostData(path, contentType string, data io.Reader, result interface{}) error {
+	h := c.makeHeader(MimeJSON)
+	h.Set("Content-Type", contentType)
+	return c.Fetch("POST", path, h, data, result)
+}
+
 // Put makes PUT request to given resource.
 func (c *Client) Put(path string, payload, result interface{}) error {
 	return c.Fetch("PUT", path, c.makeHeader(MimeJSON), payload, result)

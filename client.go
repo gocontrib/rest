@@ -5,21 +5,27 @@ import (
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
-
-	"errors"
-	"fmt"
-	"net/url"
 )
 
 const (
 	MimeJSON = "application/json"
 	MimeXML  = "application/xml"
 )
+
+type RequestStat struct {
+	RequestTime  time.Duration
+	ResponseSize int
+	StatusCode   int
+	Error        error
+}
 
 // BasicAuth encodes credentials according to basic authentication scheme.
 func BasicAuth(username, password string) string {
@@ -52,6 +58,7 @@ type Config struct {
 	TokenHeader string
 	AuthScheme  string
 	Timeout     int64
+	CollectStat func(s *RequestStat)
 }
 
 // Client to REST API service.
@@ -64,6 +71,9 @@ type Client struct {
 func NewClient(config Config) *Client {
 	if config.Timeout <= 0 {
 		config.Timeout = 30
+	}
+	if config.CollectStat == nil {
+		config.CollectStat = func(s *RequestStat) {}
 	}
 
 	// TODO should be configurable
@@ -178,8 +188,14 @@ func (c *Client) Fetch(method, path string, header http.Header, payload, result 
 		}
 	}
 
+	start := time.Now()
+	stat := &RequestStat{StatusCode: 500}
+
 	res, err := c.httpClient.Do(req)
 	if err != nil {
+		stat.Error = err
+		stat.RequestTime = time.Since(start)
+		c.config.CollectStat(stat)
 		logVerbose("client.Do() error: %v", err)
 		return err
 	}
@@ -188,9 +204,17 @@ func (c *Client) Fetch(method, path string, header http.Header, payload, result 
 
 	data, err := ioutil.ReadAll(res.Body)
 	if err != nil {
+		stat.Error = err
+		stat.RequestTime = time.Since(start)
+		c.config.CollectStat(stat)
 		logVerbose("ioutil.ReadAll() error: %v", err)
 		return err
 	}
+
+	stat.RequestTime = time.Since(start)
+	stat.ResponseSize = len(data)
+	stat.StatusCode = res.StatusCode
+	c.config.CollectStat(stat)
 
 	ok := res.StatusCode >= 200 && res.StatusCode <= 299
 	if verbose || !ok {

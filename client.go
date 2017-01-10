@@ -159,7 +159,9 @@ func (c *Client) makeHeader(accept string) http.Header {
 // Fetch makes HTTP request to given resource.
 func (c *Client) Fetch(method, path string, header http.Header, payload, result interface{}) error {
 	url := JoinURL(c.config.BaseURL, path)
-	logVerbose("%s %s", method, url)
+	if verbose {
+		log("%s %s", method, url)
+	}
 
 	var body io.Reader
 
@@ -169,16 +171,19 @@ func (c *Client) Fetch(method, path string, header http.Header, payload, result 
 		} else {
 			data, err := json.MarshalIndent(payload, "", "  ")
 			if err != nil {
+				log("json.MarshalIndent error: %v", err)
 				return err
 			}
-			logVerbose("payload:\n: %v", string(data))
+			if verbose {
+				log("payload:\n: %v", string(data))
+			}
 			body = bytes.NewReader(data)
 		}
 	}
 
 	req, err := http.NewRequest(method, url, body)
 	if err != nil {
-		logVerbose("http.NewRequest() error: %v", err)
+		log("http.NewRequest error: %v", err)
 		return err
 	}
 
@@ -196,7 +201,7 @@ func (c *Client) Fetch(method, path string, header http.Header, payload, result 
 		stat.Error = err
 		stat.RequestTime = time.Since(start)
 		c.config.CollectStat(stat)
-		logVerbose("client.Do() error: %v", err)
+		log("client.Do error: %v", err)
 		return err
 	}
 
@@ -207,7 +212,7 @@ func (c *Client) Fetch(method, path string, header http.Header, payload, result 
 		stat.Error = err
 		stat.RequestTime = time.Since(start)
 		c.config.CollectStat(stat)
-		logVerbose("ioutil.ReadAll() error: %v", err)
+		log("ioutil.ReadAll error: %v", err)
 		return err
 	}
 
@@ -218,7 +223,7 @@ func (c *Client) Fetch(method, path string, header http.Header, payload, result 
 
 	ok := res.StatusCode >= 200 && res.StatusCode <= 299
 	if verbose || !ok {
-		logVerbose("response %d:\n%v", res.StatusCode, indentedJSON(data))
+		log("response %d:\n%v", res.StatusCode, indentedJSON(data))
 	}
 
 	if result != nil && ok {
@@ -228,9 +233,9 @@ func (c *Client) Fetch(method, path string, header http.Header, payload, result 
 		} else {
 			err = json.Unmarshal(data, result)
 
-			if err != nil && verbose {
-				logVerbose("json.Decode() error: %v", err)
-				logVerbose("payload:\n%v", indentedJSON(data))
+			if err != nil {
+				log("json.Decode error: %v", err)
+				log("payload:\n%v", indentedJSON(data))
 			}
 		}
 	}
@@ -281,8 +286,6 @@ func SetLogger(fn LogFunc) {
 	logger = fn
 }
 
-func logVerbose(format string, args ...interface{}) {
-	if verbose {
-		logger(fmt.Sprintf(format, args...))
-	}
+func log(format string, args ...interface{}) {
+	logger(fmt.Sprintf(format, args...))
 }

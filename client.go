@@ -77,10 +77,16 @@ func NewClient(config Config) *Client {
 	}
 
 	// TODO should be configurable
+	tlsConfig := &tls.Config{
+		MinVersion:         tls.VersionTLS10,
+		MaxVersion:         tls.VersionTLS12,
+		InsecureSkipVerify: true, // ignore expired SSL certificates
+	}
+
+	// checkTLSConn(config, tlsConfig)
+
 	transport := &http.Transport{
-		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: true, // ignore expired SSL certificates
-		},
+		TLSClientConfig: tlsConfig,
 	}
 
 	httpClient := &http.Client{
@@ -91,6 +97,21 @@ func NewClient(config Config) *Client {
 	return &Client{
 		config:     &config,
 		httpClient: httpClient,
+	}
+}
+
+func checkTLSConn(config Config, tlsConfig *tls.Config) {
+	url, err := url.Parse(config.BaseURL)
+	if err != nil {
+		panic(err)
+	}
+
+	if url.Scheme == "https" {
+		conn, err := tls.Dial("tcp", url.Host+":443", tlsConfig)
+		defer conn.Close()
+		if err != nil {
+			log("tls.Dial error: %v", err)
+		}
 	}
 }
 
@@ -138,6 +159,8 @@ func (c *Client) Delete(path string) error {
 
 func (c *Client) makeHeader(accept string) http.Header {
 	h := http.Header{}
+	// TODO set golang version
+	h.Set("User-Agent", "Golang-HttpClient/1.0 (golang 1.7.4)")
 
 	if len(c.config.Token) > 0 {
 		if len(c.config.TokenHeader) > 0 {
@@ -223,7 +246,7 @@ func (c *Client) Fetch(method, path string, header http.Header, payload, result 
 
 	ok := res.StatusCode >= 200 && res.StatusCode <= 299
 	if verbose || !ok {
-		log("response %d:\n%v", res.StatusCode, indentedJSON(data))
+		log("%s %s - %d:\n%v", method, url, res.StatusCode, indentedJSON(data))
 	}
 
 	if result != nil && ok {

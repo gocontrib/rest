@@ -21,6 +21,7 @@ const (
 )
 
 type RequestStat struct {
+	Timestamp    time.Time
 	RequestTime  time.Duration
 	ResponseSize int
 	StatusCode   int
@@ -217,7 +218,7 @@ func (c *Client) Fetch(method, path string, header http.Header, payload, result 
 	}
 
 	start := time.Now()
-	stat := &RequestStat{StatusCode: 500}
+	stat := &RequestStat{Timestamp: start, StatusCode: 500}
 
 	res, err := c.httpClient.Do(req)
 	if err != nil {

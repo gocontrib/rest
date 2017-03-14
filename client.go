@@ -60,12 +60,14 @@ type Config struct {
 	AuthScheme  string
 	Timeout     int64
 	CollectStat func(s *RequestStat)
+	Verbose     bool
 }
 
 // Client to REST API service.
 type Client struct {
 	config     *Config
 	httpClient *http.Client
+	verbose    bool
 }
 
 // NewClient creates new instance of REST API client with given config.
@@ -98,6 +100,7 @@ func NewClient(config Config) *Client {
 	return &Client{
 		config:     &config,
 		httpClient: httpClient,
+		verbose:    config.Verbose,
 	}
 }
 
@@ -183,7 +186,7 @@ func (c *Client) makeHeader(accept string) http.Header {
 // Fetch makes HTTP request to given resource.
 func (c *Client) Fetch(method, path string, header http.Header, payload, result interface{}) error {
 	url := JoinURL(c.config.BaseURL, path)
-	if verbose {
+	if c.verbose {
 		log("%s %s", method, url)
 	}
 
@@ -198,7 +201,7 @@ func (c *Client) Fetch(method, path string, header http.Header, payload, result 
 				log("json.MarshalIndent error: %v", err)
 				return err
 			}
-			if verbose {
+			if c.verbose {
 				log("payload:\n: %v", string(data))
 			}
 			body = bytes.NewReader(data)
@@ -246,7 +249,7 @@ func (c *Client) Fetch(method, path string, header http.Header, payload, result 
 	c.config.CollectStat(stat)
 
 	ok := res.StatusCode >= 200 && res.StatusCode <= 299
-	if verbose || !ok {
+	if c.verbose || !ok {
 		log("%s %s - %d:\n%v", method, url, res.StatusCode, indentedJSON(data))
 	}
 
@@ -291,11 +294,9 @@ func indentedJSON(d []byte) string {
 	return string(b)
 }
 
-var verbose = false
-
 // SetVerbose enables/disabled verbose logging.
-func SetVerbose(value bool) {
-	verbose = value
+func (c *Client) SetVerbose(value bool) {
+	c.verbose = value
 }
 
 // LogFunc defines logging func.

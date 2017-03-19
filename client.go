@@ -263,6 +263,7 @@ func (c *Client) Fetch(method, path string, header http.Header, payload, result 
 		rr, ok := result.(*Result)
 		if ok {
 			rr.Header = res.Header
+			rr.Cookies = res.Cookies()
 			rr.Data = data
 			return nil
 		}
@@ -283,8 +284,9 @@ func (c *Client) Fetch(method, path string, header http.Header, payload, result 
 }
 
 type Result struct {
-	Header http.Header
-	Data   []byte
+	Header  http.Header
+	Cookies []*http.Cookie
+	Data    []byte
 }
 
 // JoinURL joins two pathes

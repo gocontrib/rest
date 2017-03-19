@@ -289,6 +289,19 @@ type Result struct {
 	Data    []byte
 }
 
+// Cookie returns the named cookie provided in the response or
+// ErrNoCookie if not found.
+// If multiple cookies match the given name, only one cookie will
+// be returned.
+func (r *Result) Cookie(name string) (*http.Cookie, error) {
+	for _, c := range r.Cookies {
+		if c.Name == name {
+			return c, nil
+		}
+	}
+	return nil, http.ErrNoCookie
+}
+
 // JoinURL joins two pathes
 func JoinURL(a, b string) string {
 	a = strings.TrimRight(a, "/")

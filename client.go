@@ -127,7 +127,7 @@ func (c *Client) Config() *Config {
 // Download makes GET request to download raw bytes of given resource.
 func (c *Client) Download(path string, accept string) ([]byte, error) {
 	var result []byte
-	err := c.Fetch("GET", path, c.makeHeader(accept), nil, &result)
+	err := c.Fetch("GET", path, c.MakeHeader(accept), nil, &result)
 	if err != nil {
 		return nil, err
 	}
@@ -136,32 +136,32 @@ func (c *Client) Download(path string, accept string) ([]byte, error) {
 
 // Get makes GET request to given resource.
 func (c *Client) Get(path string, result interface{}) error {
-	return c.Fetch("GET", path, c.makeHeader(MimeJSON), nil, result)
+	return c.Fetch("GET", path, c.MakeHeader(MimeJSON), nil, result)
 }
 
 // Post makes POST request to given resource.
 func (c *Client) Post(path string, payload, result interface{}) error {
-	return c.Fetch("POST", path, c.makeHeader(MimeJSON), payload, result)
+	return c.Fetch("POST", path, c.MakeHeader(MimeJSON), payload, result)
 }
 
 // PostData makes POST request to upload given data.
 func (c *Client) PostData(path, contentType string, data io.Reader, result interface{}) error {
-	h := c.makeHeader(MimeJSON)
+	h := c.MakeHeader(MimeJSON)
 	h.Set("Content-Type", contentType)
 	return c.Fetch("POST", path, h, data, result)
 }
 
 // Put makes PUT request to given resource.
 func (c *Client) Put(path string, payload, result interface{}) error {
-	return c.Fetch("PUT", path, c.makeHeader(MimeJSON), payload, result)
+	return c.Fetch("PUT", path, c.MakeHeader(MimeJSON), payload, result)
 }
 
 // Delete makes DELETE request to given resource.
 func (c *Client) Delete(path string) error {
-	return c.Fetch("DELETE", path, c.makeHeader(""), nil, nil)
+	return c.Fetch("DELETE", path, c.MakeHeader(""), nil, nil)
 }
 
-func (c *Client) makeHeader(accept string) http.Header {
+func (c *Client) MakeHeader(accept string) http.Header {
 	h := http.Header{}
 	// TODO set golang version
 	h.Set("User-Agent", "Golang-HttpClient/1.0 (golang 1.7.4)")
@@ -257,14 +257,22 @@ func (c *Client) Fetch(method, path string, header http.Header, payload, result 
 		rawResult, ok := result.(*[]byte)
 		if ok {
 			*rawResult = data
-		} else {
-			err = json.Unmarshal(data, result)
-
-			if err != nil {
-				log("json.Decode error: %v", err)
-				log("payload:\n%v", indentedJSON(data))
-			}
+			return nil
 		}
+
+		rr, ok := result.(*Result)
+		if ok {
+			rr.Header = res.Header
+			rr.Data = data
+			return nil
+		}
+
+		err = json.Unmarshal(data, result)
+		if err != nil {
+			log("json.Decode error: %v", err)
+			log("payload:\n%v", indentedJSON(data))
+		}
+		return err
 	}
 
 	if !ok && err == nil {
@@ -272,6 +280,11 @@ func (c *Client) Fetch(method, path string, header http.Header, payload, result 
 	}
 
 	return err
+}
+
+type Result struct {
+	Header http.Header
+	Data   []byte
 }
 
 // JoinURL joins two pathes

@@ -196,13 +196,13 @@ func (c *Client) Fetch(method, path string, header http.Header, payload, result 
 		if reader, ok := payload.(io.Reader); ok {
 			body = reader
 		} else {
-			data, err := json.MarshalIndent(payload, "", "  ")
+			data, err := json.Marshal(payload)
 			if err != nil {
-				log("json.MarshalIndent error: %v", err)
+				log("json.Marshal error: %v", err)
 				return err
 			}
 			if c.verbose {
-				log("payload:\n%v", string(data))
+				log("payload:\n%v", indentedJSON(data))
 			}
 			body = bytes.NewReader(data)
 		}

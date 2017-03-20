@@ -202,7 +202,7 @@ func (c *Client) Fetch(method, path string, header http.Header, payload, result 
 				return err
 			}
 			if c.verbose {
-				log("payload:\n: %v", string(data))
+				log("payload:\n%v", string(data))
 			}
 			body = bytes.NewReader(data)
 		}

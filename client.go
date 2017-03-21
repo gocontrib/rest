@@ -165,6 +165,7 @@ func (c *Client) MakeHeader(accept string) http.Header {
 	h := http.Header{}
 	// TODO set golang version
 	h.Set("User-Agent", "Golang-HttpClient/1.0 (golang 1.7.4)")
+	h.Set("Content-Type", MimeJSON)
 
 	if len(c.config.Token) > 0 {
 		if len(c.config.TokenHeader) > 0 {

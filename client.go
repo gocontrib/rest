@@ -54,13 +54,11 @@ func MakeQueryString(m map[string]string) string {
 
 // Config of the REST API client.
 type Config struct {
-	BaseURL     string
-	Token       string
-	TokenHeader string
-	AuthScheme  string
-	Timeout     int64
-	CollectStat func(s *RequestStat)
-	Verbose     bool
+	BaseURL       string
+	Authorization string
+	Timeout       int64
+	CollectStat   func(s *RequestStat)
+	Verbose       bool
 }
 
 // Client to REST API service.
@@ -167,14 +165,8 @@ func (c *Client) MakeHeader(accept string) http.Header {
 	h.Set("User-Agent", "Golang-HttpClient/1.0 (golang 1.7.4)")
 	h.Set("Content-Type", MimeJSON)
 
-	if len(c.config.Token) > 0 {
-		if len(c.config.TokenHeader) > 0 {
-			h.Set(c.config.TokenHeader, c.config.Token)
-		} else if len(c.config.AuthScheme) > 0 {
-			h.Set("Authorization", c.config.AuthScheme+" "+c.config.Token)
-		} else {
-			h.Set("Authorization", "Bearer "+c.config.Token)
-		}
+	if len(c.config.Authorization) > 0 {
+		h.Set("Authorization", c.config.Authorization)
 	}
 
 	if len(accept) > 0 {

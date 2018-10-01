@@ -117,53 +117,54 @@ func checkTLSConn(config Config, tlsConfig *tls.Config) {
 
 // Download makes GET request to download raw bytes of given resource.
 func (c *Client) Download(path string, accept string) ([]byte, error) {
+	header := c.MakeHeader()
+	header.Set("Accept", accept)
+
 	var result []byte
-	err := c.Fetch("GET", path, c.MakeHeader(accept), nil, &result)
+	err := c.Fetch("GET", path, header, nil, &result)
 	if err != nil {
 		return nil, err
 	}
+
 	return result, nil
 }
 
 // Get makes GET request to given resource.
 func (c *Client) Get(path string, result interface{}) error {
-	return c.Fetch("GET", path, c.MakeHeader(MimeJSON), nil, result)
+	return c.Fetch("GET", path, c.MakeHeader(), nil, result)
 }
 
 // Post makes POST request to given resource.
 func (c *Client) Post(path string, payload, result interface{}) error {
-	return c.Fetch("POST", path, c.MakeHeader(MimeJSON), payload, result)
+	return c.Fetch("POST", path, c.MakeHeader(), payload, result)
 }
 
 // PostData makes POST request to upload given data.
 func (c *Client) PostData(path, contentType string, data io.Reader, result interface{}) error {
-	h := c.MakeHeader(MimeJSON)
+	h := c.MakeHeader()
 	h.Set("Content-Type", contentType)
 	return c.Fetch("POST", path, h, data, result)
 }
 
 // Put makes PUT request to given resource.
 func (c *Client) Put(path string, payload, result interface{}) error {
-	return c.Fetch("PUT", path, c.MakeHeader(MimeJSON), payload, result)
+	return c.Fetch("PUT", path, c.MakeHeader(), payload, result)
 }
 
 // Delete makes DELETE request to given resource.
 func (c *Client) Delete(path string) error {
-	return c.Fetch("DELETE", path, c.MakeHeader(""), nil, nil)
+	return c.Fetch("DELETE", path, c.MakeHeader(), nil, nil)
 }
 
-func (c *Client) MakeHeader(accept string) http.Header {
+func (c *Client) MakeHeader() http.Header {
 	h := http.Header{}
 	// TODO set golang version
 	h.Set("User-Agent", "Golang-HttpClient/1.0 (golang 1.7.4)")
 	h.Set("Content-Type", MimeJSON)
+	h.Set("Accept", MimeJSON)
 
 	if len(c.Config.Authorization) > 0 {
 		h.Set("Authorization", c.Config.Authorization)
-	}
-
-	if len(accept) > 0 {
-		h.Set("Accept", accept)
 	}
 
 	return h
@@ -171,41 +172,10 @@ func (c *Client) MakeHeader(accept string) http.Header {
 
 // Fetch makes HTTP request to given resource.
 func (c *Client) Fetch(method, path string, header http.Header, payload, result interface{}) error {
-	url := JoinURL(c.Config.BaseURL, path)
-
-	verbose := c.Config.Verbose
-	if verbose {
-		log("%s %s", method, url)
-	}
-
-	var body io.Reader
-
-	if payload != nil {
-		if reader, ok := payload.(io.Reader); ok {
-			body = reader
-		} else {
-			data, err := json.Marshal(payload)
-			if err != nil {
-				log("json.Marshal error: %v", err)
-				return err
-			}
-			if verbose {
-				log("%v", indentedJSON(data))
-			}
-			body = bytes.NewReader(data)
-		}
-	}
-
-	req, err := http.NewRequest(method, url, body)
+	req, err := c.MakeRequest(method, path, header, payload)
 	if err != nil {
 		log("http.NewRequest error: %v", err)
 		return err
-	}
-
-	if header != nil {
-		for k, v := range header {
-			req.Header.Set(k, v[0])
-		}
 	}
 
 	start := time.Now()
@@ -237,7 +207,8 @@ func (c *Client) Fetch(method, path string, header http.Header, payload, result 
 	c.Config.CollectStat(stat)
 
 	ok := res.StatusCode >= 200 && res.StatusCode <= 299
-	if verbose || !ok {
+	if c.Config.Verbose || !ok {
+		url := JoinURL(c.Config.BaseURL, path)
 		log("%s %s - %d:\n%v", method, url, res.StatusCode, indentedJSON(data))
 	}
 
@@ -269,6 +240,114 @@ func (c *Client) Fetch(method, path string, header http.Header, payload, result 
 	}
 
 	return err
+}
+
+func (c *Client) MakeRequest(method, path string, header http.Header, payload interface{}) (*http.Request, error) {
+	url := JoinURL(c.Config.BaseURL, path)
+
+	if c.Config.Verbose {
+		log("%s %s", method, url)
+	}
+
+	var body io.Reader
+
+	if payload != nil {
+		if reader, ok := payload.(io.Reader); ok {
+			body = reader
+		} else {
+			data, err := json.Marshal(payload)
+			if err != nil {
+				log("json.Marshal error: %v", err)
+				return nil, err
+			}
+			if c.Config.Verbose {
+				log("%v", indentedJSON(data))
+			}
+			body = bytes.NewReader(data)
+		}
+	}
+
+	req, err := http.NewRequest(method, url, body)
+	if err != nil {
+		log("http.NewRequest error: %v", err)
+		return nil, err
+	}
+
+	if header != nil {
+		for k, v := range header {
+			req.Header.Set(k, v[0])
+		}
+	}
+
+	return req, nil
+}
+
+type Event struct {
+	Header string
+	Body   []byte
+}
+
+func (c *Client) EventStream(path string, events chan *Event) error {
+	header := c.MakeHeader()
+	header.Del("Content-Type")
+	header.Set("Cache-Control", "no-cache")
+	header.Set("Accept", "text/event-stream")
+	header.Set("Connection", "keep-alive")
+
+	req, err := c.MakeRequest("GET", path, header, nil)
+	if err != nil {
+		return err
+	}
+
+	res, err := c.Connection.Do(req)
+	if err != nil {
+		log("client.Do error: %v", err)
+		return err
+	}
+
+	prefix := make([]byte, 0)
+	buf := make([]byte, 0)
+	i := 0
+
+	for {
+		for {
+			buf = make([]byte, 4096)
+			n, err := res.Body.Read(buf)
+			if err != nil {
+				if err == io.EOF {
+					return nil
+				}
+				log("read error: %v", err)
+				return err
+			}
+
+			if len(prefix) > 0 {
+				buf = append(prefix, buf[:n]...)
+				prefix = make([]byte, 0)
+			} else {
+				buf = buf[:n]
+			}
+
+			if i = bytes.LastIndex(buf, []byte("\n\n")); i < 0 {
+				prefix = buf
+			} else {
+				break
+			}
+		}
+
+		prefix = buf[i+2:]
+		msg := buf[0:i]
+		i = bytes.Index(msg, []byte(":"))
+		header := ""
+		if i >= 0 {
+			header = string(msg[0:i])
+			msg = msg[i+1:]
+		}
+		events <- &Event{
+			Header: header,
+			Body:   msg,
+		}
+	}
 }
 
 type Result struct {

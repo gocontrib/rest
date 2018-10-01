@@ -341,6 +341,10 @@ func (c *Client) EventStream(path string, events chan *Event) error {
 			return nil
 		}
 
+		if c.Config.Verbose {
+			log("%s", string(msg))
+		}
+
 		header := ""
 
 		if i := bytes.Index(msg, []byte(":")); i >= 0 {

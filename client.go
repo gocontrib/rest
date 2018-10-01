@@ -328,7 +328,10 @@ func (c *Client) EventStream(path string, events chan *Event) error {
 			if string(b2) == "\n\n" {
 				break
 			} else {
-				buf.Write(b2)
+				_, err = buf.Write(b2)
+				if err != nil {
+					return err
+				}
 			}
 		}
 

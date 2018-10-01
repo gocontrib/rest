@@ -309,14 +309,14 @@ func (c *Client) EventStream(path string, events chan *Event) error {
 		return err
 	}
 
-	prefix := make([]byte, 0)
-	buf := make([]byte, 0)
-	i := 0
+	defer res.Body.Close()
+
+	b2 := make([]byte, 2)
 
 	for {
+		buf := bytes.NewBuffer(make([]byte, 2))
 		for {
-			buf = make([]byte, 4096)
-			n, err := res.Body.Read(buf)
+			_, err := res.Body.Read(b2)
 			if err != nil {
 				if err == io.EOF {
 					return nil
@@ -325,28 +325,26 @@ func (c *Client) EventStream(path string, events chan *Event) error {
 				return err
 			}
 
-			if len(prefix) > 0 {
-				buf = append(prefix, buf[:n]...)
-				prefix = make([]byte, 0)
-			} else {
-				buf = buf[:n]
-			}
-
-			if i = bytes.LastIndex(buf, []byte("\n\n")); i < 0 {
-				prefix = buf
-			} else {
+			if string(b2) == "\n\n" {
 				break
+			} else {
+				buf.Write(b2)
 			}
 		}
 
-		prefix = buf[i+2:]
-		msg := buf[0:i]
-		i = bytes.Index(msg, []byte(":"))
+		msg := buf.Bytes()
+
+		if string(msg) == "" { // EOF
+			return nil
+		}
+
 		header := ""
-		if i >= 0 {
+
+		if i := bytes.Index(msg, []byte(":")); i >= 0 {
 			header = string(msg[0:i])
 			msg = msg[i+1:]
 		}
+
 		events <- &Event{
 			Header: header,
 			Body:   msg,

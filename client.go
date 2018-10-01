@@ -63,9 +63,8 @@ type Config struct {
 
 // Client to REST API service.
 type Client struct {
-	config     *Config
-	httpClient *http.Client
-	verbose    bool
+	Config     *Config
+	Connection *http.Client
 }
 
 // NewClient creates new instance of REST API client with given config.
@@ -96,9 +95,8 @@ func NewClient(config Config) *Client {
 	}
 
 	return &Client{
-		config:     &config,
-		httpClient: httpClient,
-		verbose:    config.Verbose,
+		Config:     &config,
+		Connection: httpClient,
 	}
 }
 
@@ -115,11 +113,6 @@ func checkTLSConn(config Config, tlsConfig *tls.Config) {
 			log("tls.Dial error: %v", err)
 		}
 	}
-}
-
-// Config returns current client configuration.
-func (c *Client) Config() *Config {
-	return c.config
 }
 
 // Download makes GET request to download raw bytes of given resource.
@@ -165,8 +158,8 @@ func (c *Client) MakeHeader(accept string) http.Header {
 	h.Set("User-Agent", "Golang-HttpClient/1.0 (golang 1.7.4)")
 	h.Set("Content-Type", MimeJSON)
 
-	if len(c.config.Authorization) > 0 {
-		h.Set("Authorization", c.config.Authorization)
+	if len(c.Config.Authorization) > 0 {
+		h.Set("Authorization", c.Config.Authorization)
 	}
 
 	if len(accept) > 0 {
@@ -178,8 +171,10 @@ func (c *Client) MakeHeader(accept string) http.Header {
 
 // Fetch makes HTTP request to given resource.
 func (c *Client) Fetch(method, path string, header http.Header, payload, result interface{}) error {
-	url := JoinURL(c.config.BaseURL, path)
-	if c.verbose {
+	url := JoinURL(c.Config.BaseURL, path)
+
+	verbose := c.Config.Verbose
+	if verbose {
 		log("%s %s", method, url)
 	}
 
@@ -194,7 +189,7 @@ func (c *Client) Fetch(method, path string, header http.Header, payload, result 
 				log("json.Marshal error: %v", err)
 				return err
 			}
-			if c.verbose {
+			if verbose {
 				log("%v", indentedJSON(data))
 			}
 			body = bytes.NewReader(data)
@@ -216,11 +211,11 @@ func (c *Client) Fetch(method, path string, header http.Header, payload, result 
 	start := time.Now()
 	stat := &RequestStat{Timestamp: start, StatusCode: 500}
 
-	res, err := c.httpClient.Do(req)
+	res, err := c.Connection.Do(req)
 	if err != nil {
 		stat.Error = err
 		stat.RequestTime = time.Since(start)
-		c.config.CollectStat(stat)
+		c.Config.CollectStat(stat)
 		log("client.Do error: %v", err)
 		return err
 	}
@@ -231,7 +226,7 @@ func (c *Client) Fetch(method, path string, header http.Header, payload, result 
 	if err != nil {
 		stat.Error = err
 		stat.RequestTime = time.Since(start)
-		c.config.CollectStat(stat)
+		c.Config.CollectStat(stat)
 		log("ioutil.ReadAll error: %v", err)
 		return err
 	}
@@ -239,10 +234,10 @@ func (c *Client) Fetch(method, path string, header http.Header, payload, result 
 	stat.RequestTime = time.Since(start)
 	stat.ResponseSize = len(data)
 	stat.StatusCode = res.StatusCode
-	c.config.CollectStat(stat)
+	c.Config.CollectStat(stat)
 
 	ok := res.StatusCode >= 200 && res.StatusCode <= 299
-	if c.verbose || !ok {
+	if verbose || !ok {
 		log("%s %s - %d:\n%v", method, url, res.StatusCode, indentedJSON(data))
 	}
 
@@ -313,11 +308,6 @@ func indentedJSON(d []byte) string {
 		return string(d)
 	}
 	return string(b)
-}
-
-// SetVerbose enables/disabled verbose logging.
-func (c *Client) SetVerbose(value bool) {
-	c.verbose = value
 }
 
 // LogFunc defines logging func.

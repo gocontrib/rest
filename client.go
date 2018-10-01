@@ -76,6 +76,13 @@ func NewClient(config Config) *Client {
 		config.CollectStat = func(s *RequestStat) {}
 	}
 
+	return &Client{
+		Config:     &config,
+		Connection: makeHTTPClient(&config),
+	}
+}
+
+func makeHTTPClient(config *Config) *http.Client {
 	// TODO should be configurable
 	tlsConfig := &tls.Config{
 		MinVersion:         tls.VersionTLS10,
@@ -89,14 +96,9 @@ func NewClient(config Config) *Client {
 		TLSClientConfig: tlsConfig,
 	}
 
-	httpClient := &http.Client{
+	return &http.Client{
 		Timeout:   time.Duration(config.Timeout * int64(time.Second)),
 		Transport: transport,
-	}
-
-	return &Client{
-		Config:     &config,
-		Connection: httpClient,
 	}
 }
 
@@ -299,7 +301,9 @@ func (c *Client) EventStream(path string, events chan *Event) error {
 		return err
 	}
 
-	res, err := c.Connection.Do(req)
+	client := makeHTTPClient(c.Config)
+	client.Timeout = 0
+	res, err := client.Do(req)
 	if err != nil {
 		log("client.Do error: %v", err)
 		return err

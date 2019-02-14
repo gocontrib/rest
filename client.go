@@ -6,13 +6,14 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -112,7 +113,7 @@ func checkTLSConn(config Config, tlsConfig *tls.Config) {
 		conn, err := tls.Dial("tcp", url.Host+":443", tlsConfig)
 		defer conn.Close()
 		if err != nil {
-			log("tls.Dial error: %v", err)
+			log.Errorf("tls.Dial fail: %v", err)
 		}
 	}
 }
@@ -176,7 +177,7 @@ func (c *Client) MakeHeader() http.Header {
 func (c *Client) Fetch(method, path string, header http.Header, payload, result interface{}) error {
 	req, err := c.MakeRequest(method, path, header, payload)
 	if err != nil {
-		log("http.NewRequest error: %v", err)
+		log.Errorf("http.NewRequest fail: %v", err)
 		return err
 	}
 
@@ -188,7 +189,7 @@ func (c *Client) Fetch(method, path string, header http.Header, payload, result 
 		stat.Error = err
 		stat.RequestTime = time.Since(start)
 		c.Config.CollectStat(stat)
-		log("client.Do error: %v", err)
+		log.Errorf("client.Do fail: %v", err)
 		return err
 	}
 
@@ -199,7 +200,7 @@ func (c *Client) Fetch(method, path string, header http.Header, payload, result 
 		stat.Error = err
 		stat.RequestTime = time.Since(start)
 		c.Config.CollectStat(stat)
-		log("ioutil.ReadAll error: %v", err)
+		log.Errorf("ioutil.ReadAll fail: %v", err)
 		return err
 	}
 
@@ -211,7 +212,7 @@ func (c *Client) Fetch(method, path string, header http.Header, payload, result 
 	ok := res.StatusCode >= 200 && res.StatusCode <= 299
 	if c.Config.Verbose || !ok {
 		url := JoinURL(c.Config.BaseURL, path)
-		log("%s %s - %d:\n%v", method, url, res.StatusCode, indentedJSON(data))
+		log.Debugf("%s %s - %d:\n%v", method, url, res.StatusCode, indentedJSON(data))
 	}
 
 	if result != nil && ok {
@@ -231,8 +232,8 @@ func (c *Client) Fetch(method, path string, header http.Header, payload, result 
 
 		err = json.Unmarshal(data, result)
 		if err != nil {
-			log("json.Decode error: %v", err)
-			log("payload:\n%v", indentedJSON(data))
+			log.Errorf("json.Decode error: %v", err)
+			log.Debugf("payload:\n%v", indentedJSON(data))
 		}
 		return err
 	}
@@ -248,7 +249,7 @@ func (c *Client) MakeRequest(method, path string, header http.Header, payload in
 	url := JoinURL(c.Config.BaseURL, path)
 
 	if c.Config.Verbose {
-		log("%s %s", method, url)
+		log.Debugf("%s %s", method, url)
 	}
 
 	var body io.Reader
@@ -259,11 +260,11 @@ func (c *Client) MakeRequest(method, path string, header http.Header, payload in
 		} else {
 			data, err := json.Marshal(payload)
 			if err != nil {
-				log("json.Marshal error: %v", err)
+				log.Errorf("json.Marshal fail: %v", err)
 				return nil, err
 			}
 			if c.Config.Verbose {
-				log("%v", indentedJSON(data))
+				log.Debugf("%v", indentedJSON(data))
 			}
 			body = bytes.NewReader(data)
 		}
@@ -271,7 +272,7 @@ func (c *Client) MakeRequest(method, path string, header http.Header, payload in
 
 	req, err := http.NewRequest(method, url, body)
 	if err != nil {
-		log("http.NewRequest error: %v", err)
+		log.Errorf("http.NewRequest fail: %v", err)
 		return nil, err
 	}
 
@@ -305,7 +306,7 @@ func (c *Client) EventStream(path string, events chan *Event) error {
 	client.Timeout = 0
 	res, err := client.Do(req)
 	if err != nil {
-		log("client.Do error: %v", err)
+		log.Errorf("client.Do fail: %v", err)
 		return err
 	}
 
@@ -321,7 +322,7 @@ func (c *Client) EventStream(path string, events chan *Event) error {
 				if err == io.EOF {
 					return nil
 				}
-				log("read error: %v", err)
+				log.Errorf("read error: %v", err)
 				return err
 			}
 
@@ -342,7 +343,7 @@ func (c *Client) EventStream(path string, events chan *Event) error {
 		}
 
 		if c.Config.Verbose {
-			log("%s", string(msg))
+			log.Debugf("%s", string(msg))
 		}
 
 		header := ""
@@ -396,20 +397,4 @@ func indentedJSON(d []byte) string {
 		return string(d)
 	}
 	return string(b)
-}
-
-// LogFunc defines logging func.
-type LogFunc func(message string)
-
-var logger LogFunc = func(message string) {
-	fmt.Println(message)
-}
-
-// SetLogger allows to change default logger.
-func SetLogger(fn LogFunc) {
-	logger = fn
-}
-
-func log(format string, args ...interface{}) {
-	logger(fmt.Sprintf(format, args...))
 }

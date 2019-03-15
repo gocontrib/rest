@@ -79,11 +79,12 @@ func NewClient(config Config) *Client {
 
 	return &Client{
 		Config:     &config,
-		Connection: makeHTTPClient(&config),
+		Connection: NewHTTPClient(&config),
 	}
 }
 
-func makeHTTPClient(config *Config) *http.Client {
+// NewHTTPClient creates new http.Client with given config
+func NewHTTPClient(config *Config) *http.Client {
 	// TODO should be configurable
 	tlsConfig := &tls.Config{
 		MinVersion:         tls.VersionTLS10,
@@ -159,6 +160,7 @@ func (c *Client) Delete(path string) error {
 	return c.Fetch("DELETE", path, c.MakeHeader(), nil, nil)
 }
 
+// MakeHeader creates common headers based on client config
 func (c *Client) MakeHeader() http.Header {
 	h := http.Header{}
 	// TODO set golang version
@@ -245,6 +247,7 @@ func (c *Client) Fetch(method, path string, header http.Header, payload, result 
 	return err
 }
 
+// MakeRequest creates new http.Request
 func (c *Client) MakeRequest(method, path string, header http.Header, payload interface{}) (*http.Request, error) {
 	url := JoinURL(c.Config.BaseURL, path)
 
@@ -290,6 +293,7 @@ type Event struct {
 	Body   []byte
 }
 
+// EventStream reads event stream into given channel
 func (c *Client) EventStream(path string, events chan *Event) error {
 	header := c.MakeHeader()
 	header.Del("Content-Type")
@@ -302,7 +306,7 @@ func (c *Client) EventStream(path string, events chan *Event) error {
 		return err
 	}
 
-	client := makeHTTPClient(c.Config)
+	client := NewHTTPClient(c.Config)
 	client.Timeout = 0
 	res, err := client.Do(req)
 	if err != nil {

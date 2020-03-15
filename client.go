@@ -217,13 +217,13 @@ func (c *Client) Fetch(method, path string, header http.Header, payload, result 
 	mt, _, _ := mime.ParseMediaType(ct)
 	isJSON := mt == mediatype.JSON
 
-	ok := res.StatusCode >= 200 && res.StatusCode <= 299
+	ok := res.StatusCode >= 200 && res.StatusCode < 300
 	if c.Config.Verbose || !ok {
 		url := JoinURL(c.Config.BaseURL, path)
 		if isJSON {
-			log.Debugf("%s %s - %d:\n%v", method, url, res.StatusCode, indentedJSON(data))
+			log.Infof("%s %s - %d:\n%v", method, url, res.StatusCode, indentedJSON(data))
 		} else {
-			log.Debugf("%s %s - %d:\n%v", method, url, res.StatusCode, string(data))
+			log.Infof("%s %s - %d:\n%v", method, url, res.StatusCode, string(data))
 		}
 	}
 
@@ -246,7 +246,7 @@ func (c *Client) Fetch(method, path string, header http.Header, payload, result 
 			err = json.Unmarshal(data, result)
 			if err != nil {
 				log.Errorf("json.Decode error: %v", err)
-				log.Debugf("payload:\n%v", indentedJSON(data))
+				log.Infof("payload:\n%v", indentedJSON(data))
 			}
 		}
 	}
@@ -263,7 +263,7 @@ func (c *Client) MakeRequest(method, path string, header http.Header, payload in
 	url := JoinURL(c.Config.BaseURL, path)
 
 	if c.Config.Verbose {
-		log.Debugf("%s %s", method, url)
+		log.Infof("%s %s", method, url)
 	}
 
 	var body io.Reader
@@ -278,7 +278,7 @@ func (c *Client) MakeRequest(method, path string, header http.Header, payload in
 				return nil, err
 			}
 			if c.Config.Verbose {
-				log.Debugf("%v", indentedJSON(data))
+				log.Infof("%v", indentedJSON(data))
 			}
 			body = bytes.NewReader(data)
 		}
@@ -358,7 +358,7 @@ func (c *Client) EventStream(path string, events chan *Event) error {
 		}
 
 		if c.Config.Verbose {
-			log.Debugf("%s", string(msg))
+			log.Infof("%s", string(msg))
 		}
 
 		header := ""

@@ -8,17 +8,14 @@ import (
 	"errors"
 	"io"
 	"io/ioutil"
+	"mime"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
 
+	"github.com/gocontrib/mediatype"
 	log "github.com/sirupsen/logrus"
-)
-
-const (
-	MimeJSON = "application/json"
-	MimeXML  = "application/xml"
 )
 
 type RequestStat struct {
@@ -165,8 +162,8 @@ func (c *Client) MakeHeader() http.Header {
 	h := http.Header{}
 	// TODO set golang version
 	h.Set("User-Agent", "Golang-HttpClient/1.0 (golang 1.7.4)")
-	h.Set("Content-Type", MimeJSON)
-	h.Set("Accept", MimeJSON)
+	h.Set("Content-Type", mediatype.JSON)
+	h.Set("Accept", mediatype.JSON)
 
 	if len(c.Config.Authorization) > 0 {
 		h.Set("Authorization", c.Config.Authorization)
@@ -232,10 +229,18 @@ func (c *Client) Fetch(method, path string, header http.Header, payload, result 
 			return nil
 		}
 
-		err = json.Unmarshal(data, result)
+		ct := res.Header.Get("Content-Type")
+		mt, _, err := mime.ParseMediaType(ct)
 		if err != nil {
-			log.Errorf("json.Decode error: %v", err)
-			log.Debugf("payload:\n%v", indentedJSON(data))
+			log.Errorf("mime.ParseMediaType fail: %v", err)
+		}
+
+		if mt == mediatype.JSON {
+			err = json.Unmarshal(data, result)
+			if err != nil {
+				log.Errorf("json.Decode error: %v", err)
+				log.Debugf("payload:\n%v", indentedJSON(data))
+			}
 		}
 		return err
 	}

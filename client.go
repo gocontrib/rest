@@ -213,10 +213,18 @@ func (c *Client) Fetch(method, path string, header http.Header, payload, result 
 	stat.StatusCode = res.StatusCode
 	c.Config.CollectStat(stat)
 
+	ct := res.Header.Get("Content-Type")
+	mt, _, _ := mime.ParseMediaType(ct)
+	isJSON := mt == mediatype.JSON
+
 	ok := res.StatusCode >= 200 && res.StatusCode <= 299
 	if c.Config.Verbose || !ok {
 		url := JoinURL(c.Config.BaseURL, path)
-		log.Debugf("%s %s - %d:\n%v", method, url, res.StatusCode, indentedJSON(data))
+		if isJSON {
+			log.Debugf("%s %s - %d:\n%v", method, url, res.StatusCode, indentedJSON(data))
+		} else {
+			log.Debugf("%s %s - %d:\n%v", method, url, res.StatusCode, string(data))
+		}
 	}
 
 	if result != nil && ok {
@@ -234,20 +242,13 @@ func (c *Client) Fetch(method, path string, header http.Header, payload, result 
 			return nil
 		}
 
-		ct := res.Header.Get("Content-Type")
-		mt, _, err := mime.ParseMediaType(ct)
-		if err != nil {
-			log.Errorf("mime.ParseMediaType fail: %v", err)
-		}
-
-		if mt == mediatype.JSON {
+		if isJSON {
 			err = json.Unmarshal(data, result)
 			if err != nil {
 				log.Errorf("json.Decode error: %v", err)
 				log.Debugf("payload:\n%v", indentedJSON(data))
 			}
 		}
-		return err
 	}
 
 	if !ok && err == nil {

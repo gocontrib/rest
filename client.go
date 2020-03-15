@@ -57,6 +57,7 @@ type Config struct {
 	Timeout       int64
 	CollectStat   func(s *RequestStat)
 	Verbose       bool
+	Headers       func(h http.Header)
 }
 
 // Client to REST API service.
@@ -167,6 +168,10 @@ func (c *Client) MakeHeader() http.Header {
 
 	if len(c.Config.Authorization) > 0 {
 		h.Set("Authorization", c.Config.Authorization)
+	}
+
+	if c.Config.Headers != nil {
+		c.Config.Headers(h)
 	}
 
 	return h
